@@ -1,35 +1,52 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs } from 'expo-router'
+import { Home, Map, Truck, Users } from 'lucide-react-native'
+import { Colors } from '../../constants/Colors'
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopColor: Colors.border,
+        },
+        tabBarLabelStyle: {
+          fontFamily: 'Inter_400Regular',
+          fontSize: 12,
+        },
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="trips"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Trips',
+          tabBarIcon: ({ color, size }) => <Map color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="trucks"
+        options={{
+          title: 'Trucks',
+          tabBarIcon: ({ color, size }) => <Truck color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="drivers"
+        options={{
+          title: 'Drivers',
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
     </Tabs>
-  );
+  )
 }
