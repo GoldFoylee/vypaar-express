@@ -10,6 +10,8 @@ export default function VerifyScreen() {
   const router = useRouter()
   const { email } = useLocalSearchParams<{ email: string }>()
   
+  const [errorMsg, setErrorMsg] = useState('')
+  
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
   const [resendTimer, setResendTimer] = useState(60)
@@ -52,35 +54,59 @@ export default function VerifyScreen() {
       return
     }
     
+    setErrorMsg('')
     setLoading(true)
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'email',
-    })
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      })
 
-    setLoading(false)
-
-    if (error) {
-      Alert.alert('Error', error.message)
-      return
-    }
-
-    if (data.user) {
-      // Check tenant
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('tenant_id')
-        .eq('id', data.user.id)
-        .single()
-
-      // The layout listener will also pick this up, but we can actively push
-      if (userData?.tenant_id) {
-        router.replace('/(tabs)')
-      } else {
-        router.replace('/(onboarding)/setup-company')
+      if (error) {
+        setCode(['', '', '', '', '', ''])
+        setErrorMsg('Incorrect or expired code. Please try again.')
+        Alert.alert(
+          'Invalid Code',
+          'The code you entered is incorrect or has expired. Please check your email and try again.',
+          [{ text: 'OK' }]
+        )
+        return
       }
+
+      if (data.user) {
+        // Check if user row exists
+        const { data: userRow, error: userError } = await supabase
+          .from('users')
+          .select('id, tenant_id, role')
+          .eq('id', data.user.id)
+          .maybeSingle()
+
+        if (userError) {
+          Alert.alert('Error', 'Could not verify your account. Please try again.')
+          await supabase.auth.signOut()
+          router.replace('/(onboarding)/login')
+          return
+        }
+
+        if (!userRow) {
+          // No user row means this is a new signup
+          router.replace('/(onboarding)/setup-company')
+          return
+        }
+
+        if (!userRow.tenant_id) {
+          router.replace('/(onboarding)/setup-company')
+          return
+        }
+
+        router.replace('/(tabs)')
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -132,6 +158,11 @@ export default function VerifyScreen() {
               >
                 {resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend code'}
               </Text>
+              {errorMsg ? (
+                <Text style={{ color: Colors.danger, fontFamily: 'Inter_400Regular', marginTop: 12 }}>
+                  {errorMsg}
+                </Text>
+              ) : null}
             </View>
 
             <View style={styles.footer}>

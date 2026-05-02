@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { Search } from 'lucide-react-native'
+import { Search, Plus } from 'lucide-react-native'
 import { Colors } from '../../constants/Colors'
 import { StatusPill } from '../../components/ui/StatusPill'
 import { useStore } from '../../store/useStore'
@@ -124,6 +124,14 @@ export default function TripsScreen() {
           )}
         />
       )}
+
+      <TouchableOpacity 
+        style={styles.fab} 
+        onPress={() => router.push('/(trip)/choose-method')}
+        activeOpacity={0.8}
+      >
+        <Plus color="#FFFFFF" size={24} />
+      </TouchableOpacity>
     </SafeAreaView>
   )
 }
@@ -151,4 +159,5 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, color: Colors.textSecondary },
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
 })

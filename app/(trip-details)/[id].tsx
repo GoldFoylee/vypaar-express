@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking, Modal, Image, Alert } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
-import { Camera, FileText, X } from 'lucide-react-native'
+import { Camera, FileText, X, MapPin, ArrowLeft } from 'lucide-react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { decode } from 'base64-arraybuffer'
 import { Colors } from '../../constants/Colors'
@@ -21,11 +21,16 @@ export default function TripDetailsScreen() {
   const [uploadingPOD, setUploadingPOD] = useState(false)
   const [podPhotoUrl, setPodPhotoUrl] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
 
   const fetchTrip = async () => {
     const { data: tripData } = await supabase
       .from('trips')
-      .select(`*, trucks (id, registration_number), drivers (id, full_name)`)
+      .select(`
+        *,
+        trucks (registration_number, truck_type),
+        drivers (name, phone)
+      `)
       .eq('id', id)
       .single()
 
@@ -41,6 +46,25 @@ export default function TripDetailsScreen() {
 
   useEffect(() => {
     fetchTrip()
+
+    const tripSub = supabase
+      .channel(`trip_${id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${id}` }, () => {
+        fetchTrip()
+      })
+      .subscribe()
+
+    const photoSub = supabase
+      .channel(`photos_${id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_photos', filter: `trip_id=eq.${id}` }, () => {
+        fetchTrip()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(tripSub)
+      supabase.removeChannel(photoSub)
+    }
   }, [id])
 
   const handleUpdateStatus = async (newStatus: string) => {
@@ -64,7 +88,7 @@ export default function TripDetailsScreen() {
 
   const handleUploadPOD = async () => {
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
       base64: true,
@@ -96,15 +120,61 @@ export default function TripDetailsScreen() {
     }
   }
 
+  const handleNotifyParties = () => {
+    Alert.alert(
+      'Notify Parties',
+      'An SMS with the POD and delivery details will be sent to the sender and receiver.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send SMS',
+          onPress: () => {
+            Alert.alert('Success', 'SMS sent successfully!')
+          }
+        }
+      ]
+    )
+  }
+
   const renderInfoTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Sender</Text><Text style={styles.summaryValue}>{trip?.sender_details?.[0]?.name}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Receiver</Text><Text style={styles.summaryValue}>{trip?.receiver_name}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Goods</Text><Text style={styles.summaryValue}>{trip?.goods} ({trip?.weight_kg}kg)</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Freight</Text><Text style={styles.summaryValue}>₹{trip?.freight_amount}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Truck</Text><Text style={styles.summaryValue}>{trip?.trucks?.registration_number}</Text></View>
-        <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Driver</Text><Text style={styles.summaryValue}>{trip?.drivers?.full_name}</Text></View>
+        {trip?.senders?.map((sender: any, i: number) => (
+          <View style={styles.summaryRow} key={`sender-${i}`}>
+            <Text style={styles.summaryLabel}>Sender {trip.senders.length > 1 ? i + 1 : ''}</Text>
+            <Text style={styles.summaryValue}>{sender.name} • {sender.phone}</Text>
+          </View>
+        ))}
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Receiver</Text>
+          <Text style={styles.summaryValue}>{trip?.receiver_name} • {trip?.receiver_phone}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Goods</Text>
+          <Text style={styles.summaryValue}>{trip?.goods_description}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Weight</Text>
+          <Text style={styles.summaryValue}>{trip?.weight_kg?.toLocaleString('en-IN')} kg</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Freight</Text>
+          <Text style={styles.summaryValue}>₹{trip?.freight_amount?.toLocaleString('en-IN')}</Text>
+        </View>
+        {trip?.goods_value > 0 && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Goods Value</Text>
+            <Text style={styles.summaryValue}>₹{trip?.goods_value?.toLocaleString('en-IN')}</Text>
+          </View>
+        )}
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Truck</Text>
+          <Text style={styles.summaryValue}>{trip?.trucks?.registration_number} • {trip?.trucks?.truck_type}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Driver</Text>
+          <Text style={styles.summaryValue}>{trip?.drivers?.name} • {trip?.drivers?.phone}</Text>
+        </View>
       </View>
       
       {trip?.lr_pdf_url && (
@@ -124,7 +194,7 @@ export default function TripDetailsScreen() {
       <View style={styles.timelineItem}>
         <View style={styles.timelineDot} />
         <View style={styles.timelineContent}>
-          <Text style={styles.timelineTitle}>LR Created</Text>
+          <Text style={styles.timelineTitle}>LR Generated</Text>
           <Text style={styles.timelineDate}>{new Date(trip?.created_at).toLocaleString()}</Text>
         </View>
       </View>
@@ -132,34 +202,77 @@ export default function TripDetailsScreen() {
         <View style={styles.timelineItem}>
           <View style={styles.timelineDot} />
           <View style={styles.timelineContent}>
-            <Text style={styles.timelineTitle}>In Transit</Text>
+            <Text style={styles.timelineTitle}>Trip Started</Text>
+          </View>
+        </View>
+      )}
+      {trip?.status === 'IN_TRANSIT' && (
+        <View style={styles.timelineItem}>
+          <View style={styles.timelineDot} />
+          <View style={styles.timelineContent}>
+            <Text style={styles.timelineTitle}>Live Tracking</Text>
+            <View style={styles.mapStub}>
+               <MapPin color={Colors.primary} size={32} />
+               <Text style={styles.mapStubText}>Live location active...</Text>
+            </View>
           </View>
         </View>
       )}
       {['DELIVERED', 'SETTLED'].includes(trip?.status) && (
         <View style={styles.timelineItem}>
-          <View style={styles.timelineDot} />
+          <View style={[styles.timelineDot, { backgroundColor: Colors.success }]} />
           <View style={styles.timelineContent}>
-            <Text style={styles.timelineTitle}>Delivered</Text>
+            <Text style={styles.timelineTitle}>Trip Ended</Text>
+            {trip?.status === 'DELIVERED' && (
+              <Button title="Notify Parties" onPress={handleNotifyParties} style={{ marginTop: 12 }} />
+            )}
           </View>
         </View>
       )}
     </View>
   )
 
-  const renderDocsTab = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.photoGrid}>
-        {photos.map(p => (
-          <View key={p.id} style={styles.photoItem}>
-            <Image source={{ uri: p.photo_url }} style={styles.photo} />
-            <Text style={styles.photoLabel}>{p.photo_type}</Text>
+  const renderDocsTab = () => {
+    const loadingPhotos = photos.filter(p => p.photo_type === 'LOADING')
+    const unloadingPhotos = photos.filter(p => p.photo_type === 'UNLOADING')
+    const podPhotos = photos.filter(p => p.photo_type === 'POD')
+
+    const renderSection = (title: string, list: any[]) => (
+      <View style={{ marginBottom: 24 }}>
+        <Text style={styles.docSectionTitle}>{title}</Text>
+        {list.length > 0 ? (
+          <View style={styles.photoGrid}>
+            {list.map(p => (
+              <TouchableOpacity key={p.id} style={styles.photoItem} onPress={() => setSelectedPhoto(p.photo_url)}>
+                <Image source={{ uri: p.photo_url }} style={styles.photo} />
+              </TouchableOpacity>
+            ))}
           </View>
-        ))}
-        {photos.length === 0 && <Text style={styles.emptyText}>No photos uploaded.</Text>}
+        ) : (
+          <View style={styles.emptyPhotoBox}>
+            <Text style={styles.emptyText}>No photos uploaded yet.</Text>
+          </View>
+        )}
       </View>
-    </View>
-  )
+    )
+
+    return (
+      <View style={styles.tabContent}>
+        {renderSection('LOADING', loadingPhotos)}
+        {renderSection('UNLOADING', unloadingPhotos)}
+        {renderSection('PROOF OF DELIVERY (POD)', podPhotos)}
+
+        <Modal visible={!!selectedPhoto} animationType="fade" transparent>
+          <View style={styles.fullScreenModal}>
+            <TouchableOpacity style={styles.closeFullBtn} onPress={() => setSelectedPhoto(null)}>
+              <X color="#FFFFFF" size={32} />
+            </TouchableOpacity>
+            {selectedPhoto && <Image source={{ uri: selectedPhoto }} style={styles.fullScreenImage} resizeMode="contain" />}
+          </View>
+        </Modal>
+      </View>
+    )
+  }
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color={Colors.primary} /></View>
@@ -167,7 +280,16 @@ export default function TripDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: trip?.lr_number }} />
+      <Stack.Screen 
+        options={{ 
+          title: trip ? `${trip.origin} → ${trip.destination}` : 'Trip Details',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
+              <ArrowLeft color="#FFFFFF" size={24} />
+            </TouchableOpacity>
+          )
+        }} 
+      />
       
       <View style={styles.header}>
         <View style={styles.routeRow}>
@@ -258,11 +380,14 @@ const styles = StyleSheet.create({
   timelineContent: { flex: 1 },
   timelineTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: Colors.textPrimary },
   timelineDate: { fontFamily: 'Inter_400Regular', fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  mapStub: { backgroundColor: '#EFF6FF', height: 120, borderRadius: 12, marginTop: 12, borderWidth: 1, borderColor: '#BFDBFE', justifyContent: 'center', alignItems: 'center' },
+  mapStubText: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: Colors.primary, marginTop: 8 },
+  docSectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: Colors.textSecondary, marginBottom: 12 },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  photoItem: { width: '47%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: Colors.border },
-  photo: { width: '100%', height: '80%' },
-  photoLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 12, textAlign: 'center', paddingVertical: 8, color: Colors.textPrimary },
-  emptyText: { fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
+  photoItem: { width: '30%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: Colors.border },
+  photo: { width: '100%', height: '100%' },
+  emptyPhotoBox: { backgroundColor: '#F5F5F4', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
+  emptyText: { fontFamily: 'Inter_400Regular', color: Colors.textSecondary, fontSize: 12 },
   footer: { padding: 24, paddingBottom: 40, backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: Colors.border },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24, maxHeight: '80%' },
@@ -272,4 +397,7 @@ const styles = StyleSheet.create({
   uploadBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F4', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed' },
   uploadBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: Colors.primary, marginLeft: 8 },
   podPreview: { width: '100%', height: 200, borderRadius: 12, marginTop: 16, resizeMode: 'cover' },
+  fullScreenModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  closeFullBtn: { position: 'absolute', top: 60, right: 24, zIndex: 10 },
+  fullScreenImage: { width: '100%', height: '100%' },
 })

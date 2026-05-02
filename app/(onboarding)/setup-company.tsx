@@ -15,8 +15,15 @@ const companySchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
   ownerName: z.string().min(1, 'Owner name is required'),
   city: z.string().min(1, 'City is required'),
-  phone: z.string().optional(),
-  gstNumber: z.string().optional(),
+  phone: z.string()
+    .min(10, 'Phone number must be 10 digits')
+    .max(10, 'Phone number must be 10 digits')
+    .regex(/^[6-9]\d{9}$/, 'Enter a valid Indian mobile number'),
+  gstNumber: z.string()
+    .min(15, 'GST number must be 15 characters')
+    .max(15, 'GST number must be 15 characters')
+    .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Enter a valid GST number')
+    .transform(val => val.toUpperCase()),
 })
 
 type CompanyFormData = z.infer<typeof companySchema>
@@ -51,8 +58,8 @@ export default function SetupCompanyScreen() {
         company_name: data.companyName,
         owner_name: data.ownerName,
         city: data.city,
-        phone: data.phone || null,
-        gst_number: data.gstNumber || null,
+        phone: data.phone,
+        gst_number: data.gstNumber,
       }
       console.log("Submitting tenant insert payload:", tenantPayload)
 
@@ -156,15 +163,19 @@ export default function SetupCompanyScreen() {
               control={control}
               name="phone"
               render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  label="Phone number (optional)"
-                  placeholder="+91"
-                  keyboardType="phone-pad"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  error={errors.phone?.message}
-                />
+                <View style={{ marginBottom: 16 }}>
+                  <Input
+                    label="Phone number *"
+                    placeholder="9999999999"
+                    keyboardType="phone-pad"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.phone?.message}
+                    containerStyle={{ marginBottom: 4 }}
+                  />
+                  <Text style={styles.helperText}>Used for trip notifications and support</Text>
+                </View>
               )}
             />
 
@@ -172,15 +183,19 @@ export default function SetupCompanyScreen() {
               control={control}
               name="gstNumber"
               render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  label="GST number (optional)"
-                  placeholder="22AAAAA0000A1Z5"
-                  autoCapitalize="characters"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  error={errors.gstNumber?.message}
-                />
+                <View style={{ marginBottom: 16 }}>
+                  <Input
+                    label="GST number *"
+                    placeholder="22AAAAA0000A1Z5"
+                    autoCapitalize="characters"
+                    onBlur={onBlur}
+                    onChangeText={onChange}
+                    value={value}
+                    error={errors.gstNumber?.message}
+                    containerStyle={{ marginBottom: 4 }}
+                  />
+                  <Text style={styles.helperText}>Your GST number will appear on all generated Lorry Receipts</Text>
+                </View>
               )}
             />
           </View>
@@ -228,5 +243,11 @@ const styles = StyleSheet.create({
   footer: {
     paddingBottom: Platform.OS === 'ios' ? 0 : 24,
     paddingTop: 16,
+  },
+  helperText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginLeft: 4,
   },
 })

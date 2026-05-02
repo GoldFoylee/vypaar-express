@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native'
+import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Colors } from '../../constants/Colors'
@@ -35,12 +35,12 @@ export default function LoginScreen() {
       return
     }
 
-    if (!userExists) {
+    if (userExists) {
       setLoading(false)
       Alert.alert(
-        'Account Not Found',
-        'No account exists for this email address. Please create an account instead.',
-        [{ text: 'Sign Up', onPress: () => router.push('/(onboarding)/signup') }, { text: 'Cancel', style: 'cancel' }]
+        'Account Exists',
+        'An account with this email address already exists. Please log in instead.',
+        [{ text: 'Log In', onPress: () => router.replace('/(onboarding)/login') }, { text: 'Cancel', style: 'cancel' }]
       )
       return
     }
@@ -70,8 +70,8 @@ export default function LoginScreen() {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.container}>
             <View style={styles.header}>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtext}>Enter your email to receive a login code</Text>
+              <Text style={styles.title}>Enter your email address</Text>
+              <Text style={styles.subtext}>We'll send you a one-time password</Text>
             </View>
 
             <View style={styles.form}>
@@ -96,12 +96,11 @@ export default function LoginScreen() {
                 onPress={handleSendOTP} 
                 loading={loading}
               />
-              <Text 
-                style={styles.signupText}
-                onPress={() => router.push('/(onboarding)/signup')}
-              >
-                Don't have an account? <Text style={styles.signupLink}>Sign up</Text>
-              </Text>
+              <TouchableOpacity onPress={() => router.replace('/(onboarding)/login')} style={{ marginTop: 24, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Inter_400Regular', color: Colors.textSecondary }}>
+                  Already have an account? <Text style={{ fontFamily: 'Inter_600SemiBold', color: Colors.primary }}>Log In</Text>
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -140,16 +139,5 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingBottom: Platform.OS === 'ios' ? 0 : 24,
-    alignItems: 'center',
-  },
-  signupText: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 24,
-  },
-  signupLink: {
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.primary,
   },
 })

@@ -41,7 +41,13 @@ export default function SplashScreen() {
       
       <View style={styles.footer}>
         <Button 
-          title="Get Started" 
+          title="Create Account" 
+          onPress={() => router.push('/(onboarding)/signup')} 
+          variant="primary"
+        />
+        <View style={{ height: 16 }} />
+        <Button 
+          title="Login" 
           onPress={() => router.push('/(onboarding)/login')} 
           variant="secondary"
         />
